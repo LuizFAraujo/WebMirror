@@ -8,7 +8,9 @@ import { SidebarProvider } from "./context/sidebar-provider";
 import { AuthProvider } from "./hooks/use-auth";
 import { Toaster } from "@/components/ui/toaster";
 
-createRoot(document.getElementById("root")!).render(
+const root = createRoot(document.getElementById("root")!);
+
+root.render(
   <QueryClientProvider client={queryClient}>
     <ThemeProvider defaultTheme="light">
       <SidebarProvider>
