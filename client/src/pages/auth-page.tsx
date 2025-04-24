@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { cn } from "@/lib/utils";
+import { apiRequest } from "@/lib/queryClient";
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,27 +14,26 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/use-auth";
-import { loginSchema, insertUserSchema } from "@shared/schema";
+import { loginSchema } from "@shared/schema";
+
+const registerSchema = z.object({
+  username: z.string().min(3, { message: "Username must be at least 3 characters" }),
+  email: z.string().email({ message: "Please enter a valid email" }),
+  password: z.string().min(6, { message: "Password must be at least 6 characters" }),
+  fullName: z.string().optional(),
+});
 
 type LoginFormValues = z.infer<typeof loginSchema>;
-type RegisterFormValues = z.infer<typeof insertUserSchema>;
+type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function AuthPage() {
   const { toast } = useToast();
-  const { user, loginMutation, registerMutation } = useAuth();
   const [location, navigate] = useLocation();
   const search = useSearch();
   const params = new URLSearchParams(search);
   const initialTab = params.get("mode") === "register" ? "register" : "login";
   const [tab, setTab] = useState(initialTab);
-  
-  // Redirect if already logged in
-  useEffect(() => {
-    if (user) {
-      navigate("/");
-    }
-  }, [user, navigate]);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Login form
   const loginForm = useForm<LoginFormValues>({
@@ -46,14 +46,12 @@ export default function AuthPage() {
 
   // Register form
   const registerForm = useForm<RegisterFormValues>({
-    resolver: zodResolver(insertUserSchema),
+    resolver: zodResolver(registerSchema),
     defaultValues: {
       username: "",
       email: "",
       password: "",
       fullName: "",
-      role: "user",
-      avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&auto=format&fit=facearea&facepad=2&w=300&h=300&q=80",
     },
   });
 
@@ -63,30 +61,59 @@ export default function AuthPage() {
     navigate(`/auth${value === "register" ? "?mode=register" : ""}`, { replace: true });
   };
 
-  // Real login using auth context
+  // Login handler
   const onLoginSubmit = async (data: LoginFormValues) => {
-    loginMutation.mutate(data, {
-      onSuccess: () => {
-        toast({
-          title: "Login successful",
-          description: "Welcome to the admin dashboard",
-        });
-        navigate("/");
-      }
-    });
+    setIsLoading(true);
+    try {
+      const res = await apiRequest("POST", "/api/login", data);
+      const user = await res.json();
+      
+      toast({
+        title: "Login successful",
+        description: "Welcome to the admin dashboard",
+      });
+      
+      navigate("/");
+    } catch (error) {
+      toast({
+        title: "Login failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Real registration using auth context
+  // Registration handler
   const onRegisterSubmit = async (data: RegisterFormValues) => {
-    registerMutation.mutate(data, {
-      onSuccess: () => {
-        toast({
-          title: "Registration successful",
-          description: "Your account has been created",
-        });
-        navigate("/");
-      }
-    });
+    setIsLoading(true);
+    try {
+      // Add role and avatar for the user
+      const userData = {
+        ...data,
+        role: "user",
+        avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&auto=format&fit=facearea&facepad=2&w=300&h=300&q=80",
+      };
+      
+      const res = await apiRequest("POST", "/api/register", userData);
+      const user = await res.json();
+      
+      toast({
+        title: "Registration successful",
+        description: "Your account has been created",
+      });
+      
+      navigate("/");
+    } catch (error) {
+      toast({
+        title: "Registration failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -159,9 +186,9 @@ export default function AuthPage() {
                     <Button 
                       type="submit" 
                       className="w-full" 
-                      disabled={loginMutation.isPending}
+                      disabled={isLoading}
                     >
-                      {loginMutation.isPending ? (
+                      {isLoading ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Signing in...
@@ -230,9 +257,9 @@ export default function AuthPage() {
                     <Button 
                       type="submit" 
                       className="w-full" 
-                      disabled={registerMutation.isPending}
+                      disabled={isLoading}
                     >
-                      {registerMutation.isPending ? (
+                      {isLoading ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Creating account...
