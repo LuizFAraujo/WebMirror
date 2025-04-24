@@ -2,10 +2,12 @@ import { users, products, orders, orderItems, type User, type InsertUser, type P
 import createMemoryStore from "memorystore";
 import session from "express-session";
 import { Store } from "express-session";
+import { eq, and } from "drizzle-orm";
+import { db } from "./db";
+import connectPg from "connect-pg-simple";
+import { pool } from './db';
 
-// modify the interface with any CRUD methods
-// you might need
-
+// Interface de armazenamento que descreve as operações disponíveis
 export interface IStorage {
   // User operations
   getUser(id: number): Promise<User | undefined>;
@@ -35,143 +37,106 @@ export interface IStorage {
   sessionStore: Store;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private products: Map<number, Product>;
-  private orders: Map<number, Order>;
-  private orderItems: Map<number, OrderItem>;
-  
-  currentUserId: number;
-  currentProductId: number;
-  currentOrderId: number;
-  currentOrderItemId: number;
+// Implementação de armazenamento no banco de dados PostgreSQL
+export class DatabaseStorage implements IStorage {
   sessionStore: Store;
 
   constructor() {
-    this.users = new Map();
-    this.products = new Map();
-    this.orders = new Map();
-    this.orderItems = new Map();
-    
-    this.currentUserId = 1;
-    this.currentProductId = 1;
-    this.currentOrderId = 1;
-    this.currentOrderItemId = 1;
-
-    const MemoryStore = createMemoryStore(session);
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 86400000, // prune expired entries every 24h
-    });
-
-    // Create initial user
-    this.createUser({
-      username: "admin",
-      password: "adminhashedpassword", // This will be hashed in auth.ts
-      email: "admin@example.com",
-      fullName: "Admin User",
-      role: "admin",
-      avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&auto=format&fit=facearea&facepad=2&w=300&h=300&q=80"
+    // Configurar o store de sessão para usar PostgreSQL
+    const PostgresSessionStore = connectPg(session);
+    this.sessionStore = new PostgresSessionStore({ 
+      pool, 
+      createTableIfMissing: true 
     });
   }
 
   // User operations
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const result = await db.select().from(users).where(eq(users.id, id));
+    return result[0];
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const result = await db.select().from(users).where(eq(users.username, username));
+    return result[0];
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentUserId++;
-    const now = new Date();
-    const user: User = { ...insertUser, id, createdAt: now };
-    this.users.set(id, user);
-    return user;
+    const result = await db.insert(users).values(insertUser).returning();
+    return result[0];
   }
 
   async getUsers(): Promise<User[]> {
-    return Array.from(this.users.values());
+    return await db.select().from(users);
   }
 
   // Product operations
   async getProduct(id: number): Promise<Product | undefined> {
-    return this.products.get(id);
+    const result = await db.select().from(products).where(eq(products.id, id));
+    return result[0];
   }
 
   async getProducts(): Promise<Product[]> {
-    return Array.from(this.products.values());
+    return await db.select().from(products);
   }
 
   async createProduct(insertProduct: InsertProduct): Promise<Product> {
-    const id = this.currentProductId++;
-    const now = new Date();
-    const product: Product = { ...insertProduct, id, createdAt: now };
-    this.products.set(id, product);
-    return product;
+    const result = await db.insert(products).values(insertProduct).returning();
+    return result[0];
   }
 
   async updateProduct(id: number, updateProduct: Partial<InsertProduct>): Promise<Product | undefined> {
-    const product = this.products.get(id);
-    if (!product) return undefined;
+    const result = await db.update(products)
+      .set(updateProduct)
+      .where(eq(products.id, id))
+      .returning();
     
-    const updatedProduct = { ...product, ...updateProduct };
-    this.products.set(id, updatedProduct);
-    return updatedProduct;
+    return result[0];
   }
 
   async deleteProduct(id: number): Promise<boolean> {
-    return this.products.delete(id);
+    const result = await db.delete(products).where(eq(products.id, id)).returning();
+    return result.length > 0;
   }
 
   // Order operations
   async getOrder(id: number): Promise<Order | undefined> {
-    return this.orders.get(id);
+    const result = await db.select().from(orders).where(eq(orders.id, id));
+    return result[0];
   }
 
   async getOrders(): Promise<Order[]> {
-    return Array.from(this.orders.values());
+    return await db.select().from(orders);
   }
 
   async getOrdersByUser(userId: number): Promise<Order[]> {
-    return Array.from(this.orders.values()).filter(
-      (order) => order.userId === userId
-    );
+    return await db.select().from(orders).where(eq(orders.userId, userId));
   }
 
   async createOrder(insertOrder: InsertOrder): Promise<Order> {
-    const id = this.currentOrderId++;
-    const now = new Date();
-    const order: Order = { ...insertOrder, id, createdAt: now };
-    this.orders.set(id, order);
-    return order;
+    const result = await db.insert(orders).values(insertOrder).returning();
+    return result[0];
   }
 
   async updateOrderStatus(id: number, status: string): Promise<Order | undefined> {
-    const order = this.orders.get(id);
-    if (!order) return undefined;
+    const result = await db.update(orders)
+      .set({ status })
+      .where(eq(orders.id, id))
+      .returning();
     
-    const updatedOrder = { ...order, status };
-    this.orders.set(id, updatedOrder);
-    return updatedOrder;
+    return result[0];
   }
 
   // OrderItem operations
   async getOrderItems(orderId: number): Promise<OrderItem[]> {
-    return Array.from(this.orderItems.values()).filter(
-      (item) => item.orderId === orderId
-    );
+    return await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
   }
 
   async createOrderItem(insertOrderItem: InsertOrderItem): Promise<OrderItem> {
-    const id = this.currentOrderItemId++;
-    const orderItem: OrderItem = { ...insertOrderItem, id };
-    this.orderItems.set(id, orderItem);
-    return orderItem;
+    const result = await db.insert(orderItems).values(insertOrderItem).returning();
+    return result[0];
   }
 }
 
-export const storage = new MemStorage();
+// Exportar a implementação de armazenamento no banco de dados
+export const storage = new DatabaseStorage();
