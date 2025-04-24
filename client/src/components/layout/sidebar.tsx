@@ -3,7 +3,6 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { sidebarNavigation } from "@/lib/data";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useAuth } from "@/hooks/use-auth";
 import { useSidebar } from "@/hooks/use-sidebar";
 import {
   ChevronDown,
@@ -22,8 +21,15 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const [location] = useLocation();
-  const { user } = useAuth();
   const { isOpen, close } = useSidebar();
+  
+  // Mock user data for demo
+  const mockUser = {
+    username: "admin",
+    fullName: "Admin User",
+    role: "Administrator",
+    avatar: ""
+  };
 
   // Track which sections are open
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -137,15 +143,15 @@ export function Sidebar({ className }: SidebarProps) {
       <div className="p-4 mt-auto border-t border-sidebar-border">
         <div className="flex items-center space-x-3">
           <Avatar>
-            <AvatarImage src={user?.avatar || ""} alt={user?.fullName || "User"} />
-            <AvatarFallback>{user?.fullName?.charAt(0) || user?.username?.charAt(0) || "U"}</AvatarFallback>
+            <AvatarImage src={mockUser.avatar || ""} alt={mockUser.fullName || "User"} />
+            <AvatarFallback>{mockUser.fullName?.charAt(0) || mockUser.username?.charAt(0) || "U"}</AvatarFallback>
           </Avatar>
           <div>
             <p className="text-sm font-medium text-sidebar-foreground">
-              {user?.fullName || user?.username || "User"}
+              {mockUser.fullName || mockUser.username || "User"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {user?.role || "User"}
+              {mockUser.role || "User"}
             </p>
           </div>
         </div>

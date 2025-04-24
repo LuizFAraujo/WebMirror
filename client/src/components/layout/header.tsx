@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useTheme } from "@/hooks/use-theme";
 import { useSidebar } from "@/hooks/use-sidebar";
-import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { notificationData } from "@/lib/data";
 
@@ -27,6 +26,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 
 interface HeaderProps {
   className?: string;
@@ -35,13 +35,26 @@ interface HeaderProps {
 export function Header({ className }: HeaderProps) {
   const { theme, setTheme } = useTheme();
   const { toggle } = useSidebar();
-  const { user, logoutMutation } = useAuth();
+  const [location, navigate] = useLocation();
+  const { toast } = useToast();
+  
+  // Mock user data for demo
+  const mockUser = {
+    username: "admin",
+    fullName: "Admin User",
+    role: "Administrator",
+    avatar: ""
+  };
   
   // For notification dropdown
   const [notificationOpen, setNotificationOpen] = useState(false);
   
   const handleLogout = () => {
-    logoutMutation.mutate();
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out",
+    });
+    navigate("/auth");
   };
 
   const getIconForNotification = (iconName: string) => {
@@ -146,10 +159,10 @@ export function Header({ className }: HeaderProps) {
             <DropdownMenuTrigger asChild>
               <button className="flex items-center space-x-2">
                 <Avatar>
-                  <AvatarImage src={user?.avatar || ""} alt={user?.fullName || "User"} />
-                  <AvatarFallback>{user?.fullName?.charAt(0) || user?.username?.charAt(0) || "U"}</AvatarFallback>
+                  <AvatarImage src={mockUser.avatar || ""} alt={mockUser.fullName || "User"} />
+                  <AvatarFallback>{mockUser.fullName?.charAt(0) || mockUser.username?.charAt(0) || "U"}</AvatarFallback>
                 </Avatar>
-                <span className="hidden md:block">{user?.fullName || user?.username}</span>
+                <span className="hidden md:block">{mockUser.fullName || mockUser.username}</span>
                 <ChevronDown className="h-4 w-4" />
               </button>
             </DropdownMenuTrigger>
