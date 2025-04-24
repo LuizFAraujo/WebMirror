@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,30 +13,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-const loginSchema = z.object({
-  username: z.string().min(1, { message: "Username is required" }),
-  password: z.string().min(1, { message: "Password is required" }),
-});
-
-const registerSchema = z.object({
-  username: z.string().min(3, { message: "Username must be at least 3 characters" }),
-  email: z.string().email({ message: "Please enter a valid email" }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters" }),
-  fullName: z.string().optional(),
-});
+import { useAuth } from "@/hooks/use-auth";
+import { loginSchema, insertUserSchema } from "@shared/schema";
 
 type LoginFormValues = z.infer<typeof loginSchema>;
-type RegisterFormValues = z.infer<typeof registerSchema>;
+type RegisterFormValues = z.infer<typeof insertUserSchema>;
 
 export default function AuthPage() {
   const { toast } = useToast();
+  const { user, loginMutation, registerMutation } = useAuth();
   const [location, navigate] = useLocation();
   const search = useSearch();
   const params = new URLSearchParams(search);
   const initialTab = params.get("mode") === "register" ? "register" : "login";
   const [tab, setTab] = useState(initialTab);
-  const [isLoading, setIsLoading] = useState(false);
+  
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate("/");
+    }
+  }, [user, navigate]);
   
   // Login form
   const loginForm = useForm<LoginFormValues>({
@@ -49,12 +46,14 @@ export default function AuthPage() {
 
   // Register form
   const registerForm = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerSchema),
+    resolver: zodResolver(insertUserSchema),
     defaultValues: {
       username: "",
       email: "",
       password: "",
       fullName: "",
+      role: "user",
+      avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&auto=format&fit=facearea&facepad=2&w=300&h=300&q=80",
     },
   });
 
@@ -64,32 +63,30 @@ export default function AuthPage() {
     navigate(`/auth${value === "register" ? "?mode=register" : ""}`, { replace: true });
   };
 
-  // Simplified login for demo purposes
+  // Real login using auth context
   const onLoginSubmit = async (data: LoginFormValues) => {
-    setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      toast({
-        title: "Login successful",
-        description: "Welcome to the admin dashboard",
-      });
-      navigate("/");
-    }, 1500);
+    loginMutation.mutate(data, {
+      onSuccess: () => {
+        toast({
+          title: "Login successful",
+          description: "Welcome to the admin dashboard",
+        });
+        navigate("/");
+      }
+    });
   };
 
-  // Simplified registration for demo purposes
+  // Real registration using auth context
   const onRegisterSubmit = async (data: RegisterFormValues) => {
-    setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      toast({
-        title: "Registration successful",
-        description: "Your account has been created",
-      });
-      navigate("/");
-    }, 1500);
+    registerMutation.mutate(data, {
+      onSuccess: () => {
+        toast({
+          title: "Registration successful",
+          description: "Your account has been created",
+        });
+        navigate("/");
+      }
+    });
   };
 
   return (
@@ -162,9 +159,9 @@ export default function AuthPage() {
                     <Button 
                       type="submit" 
                       className="w-full" 
-                      disabled={isLoading}
+                      disabled={loginMutation.isPending}
                     >
-                      {isLoading ? (
+                      {loginMutation.isPending ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Signing in...
@@ -233,9 +230,9 @@ export default function AuthPage() {
                     <Button 
                       type="submit" 
                       className="w-full" 
-                      disabled={isLoading}
+                      disabled={registerMutation.isPending}
                     >
-                      {isLoading ? (
+                      {registerMutation.isPending ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Creating account...
